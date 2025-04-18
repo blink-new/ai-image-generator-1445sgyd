@@ -8,14 +8,14 @@ import { Toaster } from './components/ui/toaster'
 function App() {
   return (
     <ThemeProvider defaultTheme="dark" storageKey="ai-image-generator-theme">
-      <div className="min-h-screen bg-gradient-to-b from-background to-background/80 flex flex-col">
+      <div className="min-h-screen bg-gradient-to-b from-background via-background to-background/90 flex flex-col">
         <Header />
         <main className="flex-1 container mx-auto px-4 py-8">
           <ImageGenerator />
         </main>
         <footer className="py-6 border-t border-border/40">
           <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-            <p>Built with <a href="https://replicate.com" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-primary">Replicate API</a> • {new Date().getFullYear()}</p>
+            <p>Built with <a href="https://replicate.com" target="_blank" rel="noreferrer" className="text-purple-400 hover:text-purple-300 transition-colors">Replicate API</a> • {new Date().getFullYear()}</p>
           </div>
         </footer>
         <Toaster />

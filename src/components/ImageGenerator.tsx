@@ -1,9 +1,8 @@
 
 import { useState, useEffect } from "react"
-import { Loader2, Download, ImageIcon, RefreshCw, Settings } from "lucide-react"
+import { Loader2, Download, ImageIcon, RefreshCw, Settings, Trash2 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card"
-import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Textarea } from "./ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
@@ -13,6 +12,7 @@ import { useToast } from "../hooks/use-toast"
 import { cn } from "../lib/utils"
 import { ApiKeyDialog } from "./ApiKeyDialog"
 import { generateImageAPI } from "../lib/api"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog"
 
 // Define the models available in Replicate
 const MODELS = [
@@ -103,7 +103,6 @@ export function ImageGenerator() {
     }
 
     setLoading(true)
-    setGeneratedImage(null)
 
     try {
       const result = await generateImageAPI(apiKey, prompt, model, {
@@ -179,11 +178,20 @@ export function ImageGenerator() {
     })
   }
 
+  const clearHistory = () => {
+    setGeneratedImages([])
+    localStorage.removeItem("generated-images")
+    toast({
+      title: "History cleared",
+      description: "Your generation history has been cleared",
+    })
+  }
+
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2">
-          <CardHeader>
+        <Card className="lg:col-span-2 border border-purple-500/20">
+          <CardHeader className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Generate Image</CardTitle>
@@ -196,12 +204,13 @@ export function ImageGenerator() {
                 size="icon"
                 onClick={() => setShowApiKeyDialog(true)}
                 title="Configure API Key"
+                className="border-purple-500/30 hover:bg-purple-500/10"
               >
                 <Settings className="h-4 w-4" />
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
               <Label htmlFor="prompt">Prompt</Label>
               <Textarea
@@ -209,7 +218,7 @@ export function ImageGenerator() {
                 placeholder="A beautiful sunset over a mountain lake, 4k, detailed"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                className="min-h-24 resize-none"
+                className="min-h-24 resize-none focus-visible:ring-purple-500"
               />
             </div>
             
@@ -222,7 +231,7 @@ export function ImageGenerator() {
                 <div className="space-y-2">
                   <Label htmlFor="model">Model</Label>
                   <Select value={model} onValueChange={setModel}>
-                    <SelectTrigger id="model">
+                    <SelectTrigger id="model" className="focus-visible:ring-purple-500">
                       <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
                     <SelectContent>
@@ -246,7 +255,7 @@ export function ImageGenerator() {
                     placeholder="Low quality, blurry, distorted"
                     value={negativePrompt}
                     onChange={(e) => setNegativePrompt(e.target.value)}
-                    className="resize-none"
+                    className="resize-none focus-visible:ring-purple-500"
                   />
                 </div>
                 
@@ -261,6 +270,7 @@ export function ImageGenerator() {
                     step={1}
                     value={[numInferenceSteps]}
                     onValueChange={(value) => setNumInferenceSteps(value[0])}
+                    className="[&>span:first-child]:bg-purple-500"
                   />
                 </div>
                 
@@ -275,19 +285,24 @@ export function ImageGenerator() {
                     step={0.1}
                     value={[guidanceScale]}
                     onValueChange={(value) => setGuidanceScale(value[0])}
+                    className="[&>span:first-child]:bg-purple-500"
                   />
                 </div>
               </TabsContent>
             </Tabs>
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button variant="outline" onClick={() => setPrompt("")}>
+            <Button 
+              variant="outline" 
+              onClick={() => setPrompt("")}
+              className="border-purple-500/30 hover:bg-purple-500/10"
+            >
               Clear
             </Button>
             <Button 
               onClick={handleGenerate} 
               disabled={loading || !prompt}
-              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 transition-all duration-300"
             >
               {loading ? (
                 <>
@@ -305,16 +320,16 @@ export function ImageGenerator() {
         </Card>
         
         <div className="space-y-8">
-          <Card className="overflow-hidden">
-            <CardHeader>
+          <Card className="overflow-hidden border border-purple-500/20">
+            <CardHeader className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-t-lg">
               <CardTitle>Generated Image</CardTitle>
               <CardDescription>
                 Your AI-generated masterpiece
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className={cn(
-                "aspect-square rounded-md flex items-center justify-center overflow-hidden bg-secondary/30",
+                "aspect-square rounded-md flex items-center justify-center overflow-hidden bg-secondary/30 border border-purple-500/20",
                 loading && "animate-pulse"
               )}>
                 {generatedImage ? (
@@ -325,7 +340,7 @@ export function ImageGenerator() {
                   />
                 ) : (
                   <div className="text-muted-foreground flex flex-col items-center">
-                    <ImageIcon className="h-10 w-10 mb-2" />
+                    <ImageIcon className="h-10 w-10 mb-2 text-purple-500/50" />
                     <span>{loading ? "Generating..." : "No image generated yet"}</span>
                   </div>
                 )}
@@ -335,7 +350,7 @@ export function ImageGenerator() {
               <CardFooter>
                 <Button 
                   variant="secondary" 
-                  className="w-full" 
+                  className="w-full hover:bg-purple-500/10" 
                   onClick={handleDownload}
                 >
                   <Download className="mr-2 h-4 w-4" />
@@ -346,19 +361,48 @@ export function ImageGenerator() {
           </Card>
           
           {generatedImages.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Images</CardTitle>
-                <CardDescription>
-                  Your generation history
-                </CardDescription>
+            <Card className="border border-purple-500/20">
+              <CardHeader className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-t-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Recent Images</CardTitle>
+                    <CardDescription>
+                      Your generation history
+                    </CardDescription>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        className="border-purple-500/30 hover:bg-purple-500/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Clear History</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to clear your generation history? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={clearHistory}>
+                          Clear
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-2">
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-2 gap-3">
                   {generatedImages.slice(0, 6).map((img, i) => (
                     <div 
                       key={i} 
-                      className="aspect-square rounded-md overflow-hidden relative group"
+                      className="aspect-square rounded-md overflow-hidden relative group border border-purple-500/20"
                     >
                       <img 
                         src={img.url} 
@@ -366,7 +410,7 @@ export function ImageGenerator() {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform cursor-pointer"
                         onClick={() => setGeneratedImage(img.url)}
                       />
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                         <p className="text-white text-xs line-clamp-2">{img.prompt}</p>
                       </div>
                     </div>
