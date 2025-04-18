@@ -1,6 +1,6 @@
 
-import { useState } from "react"
-import { Loader2, Download, ImageIcon, RefreshCw } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Loader2, Download, ImageIcon, RefreshCw, Settings } from "lucide-react"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card"
 import { Input } from "./ui/input"
@@ -11,25 +11,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Slider } from "./ui/slider"
 import { useToast } from "../hooks/use-toast"
 import { cn } from "../lib/utils"
+import { ApiKeyDialog } from "./ApiKeyDialog"
+import { generateImageAPI } from "../lib/api"
 
 // Define the models available in Replicate
 const MODELS = [
   {
-    id: "stability-ai/sdxl",
+    id: "stability-ai/sdxl:c221b2b8ef527988fb59bf24a8b97c4561f1c671f73bd389f866bfb27c061316",
     name: "Stable Diffusion XL",
     description: "State-of-the-art image generation model"
   },
   {
-    id: "stability-ai/stable-diffusion",
+    id: "stability-ai/stable-diffusion:ac732df83cea7fff18b8472768c88ad041fa750ff7682a21affe81863cbe77e4",
     name: "Stable Diffusion",
     description: "Fast and efficient image generation"
   },
   {
-    id: "prompthero/openjourney",
+    id: "prompthero/openjourney:9936c2001faa2194a261c01381f90e65261879985476014a0a37a334593a05eb",
     name: "OpenJourney",
     description: "Midjourney-like style images"
   }
 ]
+
+type GeneratedImage = {
+  url: string;
+  prompt: string;
+  timestamp: number;
+}
 
 export function ImageGenerator() {
   const { toast } = useToast()
@@ -40,7 +48,44 @@ export function ImageGenerator() {
   const [guidanceScale, setGuidanceScale] = useState(7.5)
   const [loading, setLoading] = useState(false)
   const [generatedImage, setGeneratedImage] = useState<string | null>(null)
-  const [generatedImages, setGeneratedImages] = useState<string[]>([])
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
+  const [apiKey, setApiKey] = useState<string>("")
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
+
+  // Load API key and generated images from localStorage on component mount
+  useEffect(() => {
+    const storedApiKey = localStorage.getItem("replicate-api-key")
+    if (storedApiKey) {
+      setApiKey(storedApiKey)
+    } else {
+      setShowApiKeyDialog(true)
+    }
+
+    const storedImages = localStorage.getItem("generated-images")
+    if (storedImages) {
+      try {
+        setGeneratedImages(JSON.parse(storedImages))
+      } catch (e) {
+        console.error("Failed to parse stored images:", e)
+      }
+    }
+  }, [])
+
+  // Save generated images to localStorage when they change
+  useEffect(() => {
+    if (generatedImages.length > 0) {
+      localStorage.setItem("generated-images", JSON.stringify(generatedImages))
+    }
+  }, [generatedImages])
+
+  const handleSaveApiKey = (key: string) => {
+    setApiKey(key)
+    localStorage.setItem("replicate-api-key", key)
+    toast({
+      title: "API Key Saved",
+      description: "Your Replicate API key has been saved",
+    })
+  }
 
   const handleGenerate = async () => {
     if (!prompt) {
@@ -52,31 +97,66 @@ export function ImageGenerator() {
       return
     }
 
+    if (!apiKey) {
+      setShowApiKeyDialog(true)
+      return
+    }
+
     setLoading(true)
     setGeneratedImage(null)
 
     try {
-      // This is a placeholder for the actual API call
-      // In a real implementation, we would call the Replicate API here
-      // For now, we'll simulate a delay and use a placeholder image
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      
-      // Placeholder image URL - in real implementation this would come from Replicate
-      const imageUrl = "https://images.unsplash.com/photo-1637858868799-7f26a0640eb6?q=80&w=2000"
+      const result = await generateImageAPI(apiKey, prompt, model, {
+        negative_prompt: negativePrompt,
+        num_inference_steps: numInferenceSteps,
+        guidance_scale: guidanceScale,
+      })
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to generate image")
+      }
+
+      // Replicate typically returns an array of image URLs
+      const imageUrl = Array.isArray(result.data) ? result.data[0] : result.data
+
+      if (!imageUrl) {
+        throw new Error("No image URL returned from API")
+      }
+
       setGeneratedImage(imageUrl)
-      setGeneratedImages(prev => [imageUrl, ...prev])
+      
+      const newImage: GeneratedImage = {
+        url: imageUrl,
+        prompt,
+        timestamp: Date.now()
+      }
+      
+      setGeneratedImages(prev => [newImage, ...prev].slice(0, 20)) // Keep only the last 20 images
       
       toast({
         title: "Image generated!",
         description: "Your image has been successfully generated",
       })
     } catch (error) {
-      toast({
-        title: "Generation failed",
-        description: "There was an error generating your image",
-        variant: "destructive"
-      })
       console.error("Error generating image:", error)
+      
+      // Check if it's an API key error
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      
+      if (errorMessage.includes("API key") || errorMessage.includes("auth") || errorMessage.includes("unauthorized")) {
+        toast({
+          title: "API Key Error",
+          description: "Your Replicate API key appears to be invalid. Please update it.",
+          variant: "destructive"
+        })
+        setShowApiKeyDialog(true)
+      } else {
+        toast({
+          title: "Generation failed",
+          description: errorMessage,
+          variant: "destructive"
+        })
+      }
     } finally {
       setLoading(false)
     }
@@ -85,6 +165,7 @@ export function ImageGenerator() {
   const handleDownload = () => {
     if (!generatedImage) return
     
+    // Create a temporary link element
     const link = document.createElement("a")
     link.href = generatedImage
     link.download = `ai-generated-${Date.now()}.png`
@@ -99,182 +180,209 @@ export function ImageGenerator() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>Generate Image</CardTitle>
-          <CardDescription>
-            Create stunning AI-generated images with a text prompt
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="prompt">Prompt</Label>
-            <Textarea
-              id="prompt"
-              placeholder="A beautiful sunset over a mountain lake, 4k, detailed"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="min-h-24 resize-none"
-            />
-          </div>
-          
-          <Tabs defaultValue="basic">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">Basic</TabsTrigger>
-              <TabsTrigger value="advanced">Advanced</TabsTrigger>
-            </TabsList>
-            <TabsContent value="basic" className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="model">Model</Label>
-                <Select value={model} onValueChange={setModel}>
-                  <SelectTrigger id="model">
-                    <SelectValue placeholder="Select a model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MODELS.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        <div className="flex flex-col">
-                          <span>{m.name}</span>
-                          <span className="text-xs text-muted-foreground">{m.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </TabsContent>
-            <TabsContent value="advanced" className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="negative-prompt">Negative Prompt</Label>
-                <Textarea
-                  id="negative-prompt"
-                  placeholder="Low quality, blurry, distorted"
-                  value={negativePrompt}
-                  onChange={(e) => setNegativePrompt(e.target.value)}
-                  className="resize-none"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="inference-steps">Inference Steps: {numInferenceSteps}</Label>
-                </div>
-                <Slider
-                  id="inference-steps"
-                  min={10}
-                  max={50}
-                  step={1}
-                  value={[numInferenceSteps]}
-                  onValueChange={(value) => setNumInferenceSteps(value[0])}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <Label htmlFor="guidance-scale">Guidance Scale: {guidanceScale}</Label>
-                </div>
-                <Slider
-                  id="guidance-scale"
-                  min={1}
-                  max={20}
-                  step={0.1}
-                  value={[guidanceScale]}
-                  onValueChange={(value) => setGuidanceScale(value[0])}
-                />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={() => setPrompt("")}>
-            Clear
-          </Button>
-          <Button onClick={handleGenerate} disabled={loading || !prompt}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Generate
-              </>
-            )}
-          </Button>
-        </CardFooter>
-      </Card>
-      
-      <div className="space-y-8">
-        <Card className="overflow-hidden">
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Generated Image</CardTitle>
-            <CardDescription>
-              Your AI-generated masterpiece
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={cn(
-              "aspect-square rounded-md flex items-center justify-center overflow-hidden bg-secondary/30",
-              loading && "animate-pulse"
-            )}>
-              {generatedImage ? (
-                <img 
-                  src={generatedImage} 
-                  alt="Generated" 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="text-muted-foreground flex flex-col items-center">
-                  <ImageIcon className="h-10 w-10 mb-2" />
-                  <span>{loading ? "Generating..." : "No image generated yet"}</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-          {generatedImage && (
-            <CardFooter>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Generate Image</CardTitle>
+                <CardDescription>
+                  Create stunning AI-generated images with a text prompt
+                </CardDescription>
+              </div>
               <Button 
-                variant="secondary" 
-                className="w-full" 
-                onClick={handleDownload}
+                variant="outline" 
+                size="icon"
+                onClick={() => setShowApiKeyDialog(true)}
+                title="Configure API Key"
               >
-                <Download className="mr-2 h-4 w-4" />
-                Download
+                <Settings className="h-4 w-4" />
               </Button>
-            </CardFooter>
-          )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="prompt">Prompt</Label>
+              <Textarea
+                id="prompt"
+                placeholder="A beautiful sunset over a mountain lake, 4k, detailed"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="min-h-24 resize-none"
+              />
+            </div>
+            
+            <Tabs defaultValue="basic">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="basic">Basic</TabsTrigger>
+                <TabsTrigger value="advanced">Advanced</TabsTrigger>
+              </TabsList>
+              <TabsContent value="basic" className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="model">Model</Label>
+                  <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger id="model">
+                      <SelectValue placeholder="Select a model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MODELS.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          <div className="flex flex-col">
+                            <span>{m.name}</span>
+                            <span className="text-xs text-muted-foreground">{m.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </TabsContent>
+              <TabsContent value="advanced" className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="negative-prompt">Negative Prompt</Label>
+                  <Textarea
+                    id="negative-prompt"
+                    placeholder="Low quality, blurry, distorted"
+                    value={negativePrompt}
+                    onChange={(e) => setNegativePrompt(e.target.value)}
+                    className="resize-none"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="inference-steps">Inference Steps: {numInferenceSteps}</Label>
+                  </div>
+                  <Slider
+                    id="inference-steps"
+                    min={10}
+                    max={50}
+                    step={1}
+                    value={[numInferenceSteps]}
+                    onValueChange={(value) => setNumInferenceSteps(value[0])}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <Label htmlFor="guidance-scale">Guidance Scale: {guidanceScale.toFixed(1)}</Label>
+                  </div>
+                  <Slider
+                    id="guidance-scale"
+                    min={1}
+                    max={20}
+                    step={0.1}
+                    value={[guidanceScale]}
+                    onValueChange={(value) => setGuidanceScale(value[0])}
+                  />
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" onClick={() => setPrompt("")}>
+              Clear
+            </Button>
+            <Button 
+              onClick={handleGenerate} 
+              disabled={loading || !prompt}
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Generate
+                </>
+              )}
+            </Button>
+          </CardFooter>
         </Card>
         
-        {generatedImages.length > 0 && (
-          <Card>
+        <div className="space-y-8">
+          <Card className="overflow-hidden">
             <CardHeader>
-              <CardTitle>Recent Images</CardTitle>
+              <CardTitle>Generated Image</CardTitle>
               <CardDescription>
-                Your generation history
+                Your AI-generated masterpiece
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-2">
-                {generatedImages.slice(0, 4).map((img, i) => (
-                  <div 
-                    key={i} 
-                    className="aspect-square rounded-md overflow-hidden"
-                  >
-                    <img 
-                      src={img} 
-                      alt={`Generated ${i}`} 
-                      className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
-                      onClick={() => setGeneratedImage(img)}
-                    />
+              <div className={cn(
+                "aspect-square rounded-md flex items-center justify-center overflow-hidden bg-secondary/30",
+                loading && "animate-pulse"
+              )}>
+                {generatedImage ? (
+                  <img 
+                    src={generatedImage} 
+                    alt="Generated" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-muted-foreground flex flex-col items-center">
+                    <ImageIcon className="h-10 w-10 mb-2" />
+                    <span>{loading ? "Generating..." : "No image generated yet"}</span>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
+            {generatedImage && (
+              <CardFooter>
+                <Button 
+                  variant="secondary" 
+                  className="w-full" 
+                  onClick={handleDownload}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </CardFooter>
+            )}
           </Card>
-        )}
+          
+          {generatedImages.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Images</CardTitle>
+                <CardDescription>
+                  Your generation history
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-2">
+                  {generatedImages.slice(0, 6).map((img, i) => (
+                    <div 
+                      key={i} 
+                      className="aspect-square rounded-md overflow-hidden relative group"
+                    >
+                      <img 
+                        src={img.url} 
+                        alt={`Generated ${i}`} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform cursor-pointer"
+                        onClick={() => setGeneratedImage(img.url)}
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                        <p className="text-white text-xs line-clamp-2">{img.prompt}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
-    </div>
+      
+      <ApiKeyDialog 
+        open={showApiKeyDialog} 
+        onOpenChange={setShowApiKeyDialog}
+        onSubmit={handleSaveApiKey}
+      />
+    </>
   )
 }

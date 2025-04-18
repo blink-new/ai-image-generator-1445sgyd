@@ -15,7 +15,7 @@ function App() {
         </main>
         <footer className="py-6 border-t border-border/40">
           <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-            <p>Built with Replicate API • {new Date().getFullYear()}</p>
+            <p>Built with <a href="https://replicate.com" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-primary">Replicate API</a> • {new Date().getFullYear()}</p>
           </div>
         </footer>
         <Toaster />
