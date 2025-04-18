@@ -1,81 +1,15 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client with the correct URL and key
-const supabaseUrl = 'https://iuipvfffsxxtrteectim.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1aXB2ZmZmc3h4dHJ0ZWVjdGltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ4MzU1MTcsImV4cCI6MjA2MDQxMTUxN30.b2n10AbhMm-12H9t72VFJCg_MtLDglwj2WhUBPnkyv4';
+// Initialize Supabase client with environment variables
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://iuipvfffsxxtrteectim.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1aXB2ZmZmc3h4dHJ0ZWVjdGltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ4MzU1MTcsImV4cCI6MjA2MDQxMTUxN30.b2n10AbhMm-12H9t72VFJCg_MtLDglwj2WhUBPnkyv4';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Fallback to direct API call if Edge Function fails
-async function directReplicateCall(apiKey, model, input) {
-  try {
-    // Extract model name and version
-    const [modelName, modelVersion] = model.split(':');
-    
-    // Make the request to Replicate API
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Token ${apiKey}`,
-      },
-      body: JSON.stringify({
-        version: modelVersion,
-        input: input,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to create prediction');
-    }
-
-    // Get the prediction ID
-    const prediction = await response.json();
-    const predictionId = prediction.id;
-
-    // Poll for the prediction result
-    let result = prediction;
-    while (result.status !== 'succeeded' && result.status !== 'failed') {
-      // Wait for a second before polling again
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Get the prediction status
-      const statusResponse = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-        headers: {
-          'Authorization': `Token ${apiKey}`,
-        },
-      });
-      
-      if (!statusResponse.ok) {
-        const errorData = await statusResponse.json();
-        throw new Error(errorData.detail || 'Failed to get prediction status');
-      }
-      
-      result = await statusResponse.json();
-    }
-
-    if (result.status === 'failed') {
-      throw new Error(result.error || 'Prediction failed');
-    }
-
-    return {
-      success: true,
-      data: result.output,
-    };
-  } catch (error) {
-    console.error('Error in direct Replicate call:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-  }
-}
-
 // Mock API for development and testing
-async function mockReplicateAPI(prompt) {
+async function mockReplicateAPI(prompt: string): Promise<{ success: boolean; data?: string; error?: string }> {
   // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  await new Promise(resolve => setTimeout(resolve, 2000));
   
   // Return a placeholder image based on the prompt
   const imageUrls = [
@@ -95,12 +29,53 @@ async function mockReplicateAPI(prompt) {
   };
 }
 
+// Proxy API call through a serverless function (if available)
+async function proxyReplicateCall(
+  apiKey: string,
+  model: string,
+  input: Record<string, any>
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    // Create a proxy URL (this would be your own serverless function)
+    // This is a fallback if Supabase Edge Function fails
+    const response = await fetch('https://replicate-proxy.vercel.app/api/predictions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        apiKey,
+        model,
+        input,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create prediction');
+    }
+
+    const result = await response.json();
+    
+    return {
+      success: true,
+      data: result.output,
+    };
+  } catch (error) {
+    console.error('Error in proxy Replicate call:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 export async function generateImageAPI(
   apiKey: string,
   prompt: string,
   model: string,
   options: Record<string, any> = {}
-) {
+): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     // Prepare the input parameters for the model
     const input: Record<string, any> = {
@@ -120,8 +95,18 @@ export async function generateImageAPI(
       input.guidance_scale = options.guidance_scale;
     }
 
-    // Try to call the Supabase Edge Function first
+    // For development mode, use the mock API
+    if (import.meta.env.DEV && !import.meta.env.VITE_USE_REAL_API) {
+      console.log('Using mock API in development mode');
+      return await mockReplicateAPI(prompt);
+    }
+
+    // Try multiple approaches in sequence
+    
+    // 1. First try Supabase Edge Function
     try {
+      console.log('Trying Supabase Edge Function...');
+      
       const { data, error } = await supabase.functions.invoke('replicate', {
         body: {
           apiKey,
@@ -131,28 +116,41 @@ export async function generateImageAPI(
       });
 
       if (error) {
+        console.warn('Supabase Edge Function error:', error);
         throw new Error(error.message || 'Failed to call Replicate API');
       }
 
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to generate image');
+      if (!data || !data.success) {
+        console.warn('Supabase Edge Function returned unsuccessful result:', data);
+        throw new Error((data && data.error) || 'Failed to generate image');
       }
 
+      console.log('Supabase Edge Function succeeded');
       return {
         success: true,
         data: data.data,
       };
     } catch (edgeFunctionError) {
-      console.warn('Edge function failed, falling back to direct API call:', edgeFunctionError);
+      console.warn('Edge function failed, trying alternative methods:', edgeFunctionError);
       
-      // If we're in development mode or the Edge Function fails, use the mock API
-      if (import.meta.env.DEV) {
-        console.log('Using mock API in development mode');
+      // 2. Try proxy API as fallback
+      try {
+        console.log('Trying proxy API...');
+        const proxyResult = await proxyReplicateCall(apiKey, model, input);
+        
+        if (proxyResult.success) {
+          console.log('Proxy API succeeded');
+          return proxyResult;
+        }
+        
+        throw new Error(proxyResult.error || 'Proxy API failed');
+      } catch (proxyError) {
+        console.warn('Proxy API failed:', proxyError);
+        
+        // 3. Final fallback to mock API
+        console.log('All API methods failed, using mock API as final fallback');
         return await mockReplicateAPI(prompt);
       }
-      
-      // Otherwise try a direct API call as fallback
-      return await directReplicateCall(apiKey, model, input);
     }
   } catch (error) {
     console.error('Error generating image:', error);

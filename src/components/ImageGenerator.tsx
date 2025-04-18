@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react"
-import { Loader2, Download, ImageIcon, RefreshCw, Settings, Trash2, Sparkles, Wand2 } from "lucide-react"
+import { Loader2, Download, ImageIcon, RefreshCw, Settings, Trash2, Sparkles, Wand2, AlertTriangle } from "lucide-react"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card"
 import { Label } from "./ui/label"
@@ -14,6 +14,7 @@ import { ApiKeyDialog } from "./ApiKeyDialog"
 import { generateImageAPI } from "../lib/api"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog"
 import { motion, AnimatePresence } from "framer-motion"
+import { Alert, AlertDescription } from "./ui/alert"
 
 // Define the models available in Replicate
 const MODELS = [
@@ -62,12 +63,14 @@ export function ImageGenerator() {
   const [apiKey, setApiKey] = useState<string>("")
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
   const [showSamplePrompts, setShowSamplePrompts] = useState(false)
+  const [isDemoMode, setIsDemoMode] = useState(false)
 
   // Load API key and generated images from localStorage on component mount
   useEffect(() => {
     const storedApiKey = localStorage.getItem("replicate-api-key")
     if (storedApiKey) {
       setApiKey(storedApiKey)
+      setIsDemoMode(storedApiKey === "r8_demo_key")
     } else {
       setShowApiKeyDialog(true)
     }
@@ -92,9 +95,12 @@ export function ImageGenerator() {
   const handleSaveApiKey = (key: string) => {
     setApiKey(key)
     localStorage.setItem("replicate-api-key", key)
+    setIsDemoMode(key === "r8_demo_key")
     toast({
-      title: "API Key Saved",
-      description: "Your Replicate API key has been saved",
+      title: key === "r8_demo_key" ? "Demo Mode Activated" : "API Key Saved",
+      description: key === "r8_demo_key" 
+        ? "You're using demo mode with placeholder images" 
+        : "Your Replicate API key has been saved",
     })
   }
 
@@ -144,8 +150,10 @@ export function ImageGenerator() {
       setGeneratedImages(prev => [newImage, ...prev].slice(0, 20)) // Keep only the last 20 images
       
       toast({
-        title: "Image generated!",
-        description: "Your image has been successfully generated",
+        title: isDemoMode ? "Demo image generated!" : "Image generated!",
+        description: isDemoMode 
+          ? "This is a placeholder image in demo mode" 
+          : "Your image has been successfully generated",
       })
     } catch (error) {
       console.error("Error generating image:", error)
@@ -242,6 +250,25 @@ export function ImageGenerator() {
               </Button>
             </div>
           </CardHeader>
+          
+          {isDemoMode && (
+            <div className="px-6 pt-6">
+              <Alert className="bg-amber-500/10 border-amber-500/30">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertDescription className="text-sm">
+                  You're in demo mode. Images are placeholders, not real AI generations.{" "}
+                  <button 
+                    className="text-purple-400 hover:text-purple-300 underline underline-offset-4"
+                    onClick={() => setShowApiKeyDialog(true)}
+                  >
+                    Add your API key
+                  </button>{" "}
+                  for real AI images.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+          
           <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between">

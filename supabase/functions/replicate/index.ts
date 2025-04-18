@@ -31,7 +31,10 @@ serve(async (req) => {
 
   try {
     // Parse the request body
-    const { apiKey, model, input } = await req.json() as ReplicateRequest
+    const body = await req.json();
+    console.log("Request body:", JSON.stringify(body));
+    
+    const { apiKey, model, input } = body as ReplicateRequest;
 
     if (!apiKey) {
       throw new Error("API key is required")
@@ -48,8 +51,10 @@ serve(async (req) => {
       throw new Error("Invalid model format. Expected 'model:version'")
     }
 
+    console.log(`Processing request for model: ${modelName}, version: ${modelVersion}`);
+
     // Make the request to Replicate API
-    const response = await fetch(`https://api.replicate.com/v1/predictions`, {
+    const response = await fetch("https://api.replicate.com/v1/predictions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -63,16 +68,24 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorData = await response.json()
+      console.error("Replicate API error:", JSON.stringify(errorData));
       throw new Error(errorData.detail || "Failed to create prediction")
     }
 
     // Get the prediction ID
     const prediction = await response.json()
     const predictionId = prediction.id
+    console.log(`Prediction created with ID: ${predictionId}`);
 
     // Poll for the prediction result
     let result = prediction
-    while (result.status !== "succeeded" && result.status !== "failed") {
+    let attempts = 0;
+    const maxAttempts = 30; // Limit polling to prevent infinite loops
+    
+    while (result.status !== "succeeded" && result.status !== "failed" && attempts < maxAttempts) {
+      attempts++;
+      console.log(`Polling attempt ${attempts}, status: ${result.status}`);
+      
       // Wait for a second before polling again
       await new Promise(resolve => setTimeout(resolve, 1000))
       
@@ -85,6 +98,7 @@ serve(async (req) => {
       
       if (!statusResponse.ok) {
         const errorData = await statusResponse.json()
+        console.error("Status check error:", JSON.stringify(errorData));
         throw new Error(errorData.detail || "Failed to get prediction status")
       }
       
@@ -92,9 +106,17 @@ serve(async (req) => {
     }
 
     if (result.status === "failed") {
+      console.error("Prediction failed:", result.error);
       throw new Error(result.error || "Prediction failed")
     }
 
+    if (attempts >= maxAttempts && result.status !== "succeeded") {
+      console.error("Prediction timed out after maximum polling attempts");
+      throw new Error("Prediction timed out")
+    }
+
+    console.log("Prediction succeeded, returning output");
+    
     // Return the prediction result
     const responseBody: ReplicateResponse = {
       success: true,
@@ -106,7 +128,7 @@ serve(async (req) => {
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error"
-    console.error(`Error: ${errorMessage}`)
+    console.error(`Error in Edge Function: ${errorMessage}`)
 
     const responseBody: ReplicateResponse = {
       success: false,
