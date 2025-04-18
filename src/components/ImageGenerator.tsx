@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react"
-import { Loader2, Download, ImageIcon, RefreshCw, Settings, Trash2 } from "lucide-react"
+import { Loader2, Download, ImageIcon, RefreshCw, Settings, Trash2, Sparkles, Wand2 } from "lucide-react"
 import { Button } from "./ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card"
 import { Label } from "./ui/label"
@@ -13,6 +13,7 @@ import { cn } from "../lib/utils"
 import { ApiKeyDialog } from "./ApiKeyDialog"
 import { generateImageAPI } from "../lib/api"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "./ui/alert-dialog"
+import { motion, AnimatePresence } from "framer-motion"
 
 // Define the models available in Replicate
 const MODELS = [
@@ -33,6 +34,15 @@ const MODELS = [
   }
 ]
 
+// Sample prompts to help users get started
+const SAMPLE_PROMPTS = [
+  "A serene Japanese garden with cherry blossoms, 4k, detailed",
+  "Cyberpunk cityscape at night with neon lights and flying cars",
+  "A magical forest with glowing mushrooms and fairy lights",
+  "An astronaut riding a horse on Mars, photorealistic",
+  "A cozy cabin in the mountains during winter, snow falling"
+]
+
 type GeneratedImage = {
   url: string;
   prompt: string;
@@ -51,6 +61,7 @@ export function ImageGenerator() {
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [apiKey, setApiKey] = useState<string>("")
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false)
+  const [showSamplePrompts, setShowSamplePrompts] = useState(false)
 
   // Load API key and generated images from localStorage on component mount
   useEffect(() => {
@@ -187,14 +198,35 @@ export function ImageGenerator() {
     })
   }
 
+  const useSamplePrompt = (samplePrompt: string) => {
+    setPrompt(samplePrompt)
+    setShowSamplePrompts(false)
+    toast({
+      title: "Prompt applied",
+      description: "Sample prompt has been applied",
+    })
+  }
+
+  const getRandomPrompt = () => {
+    const randomIndex = Math.floor(Math.random() * SAMPLE_PROMPTS.length)
+    setPrompt(SAMPLE_PROMPTS[randomIndex])
+    toast({
+      title: "Random prompt applied",
+      description: "Try generating with this creative prompt!",
+    })
+  }
+
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 border border-purple-500/20">
+        <Card className="lg:col-span-2 border border-purple-500/20 overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Generate Image</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-purple-400" />
+                  Generate Image
+                </CardTitle>
                 <CardDescription>
                   Create stunning AI-generated images with a text prompt
                 </CardDescription>
@@ -212,14 +244,60 @@ export function ImageGenerator() {
           </CardHeader>
           <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
-              <Label htmlFor="prompt">Prompt</Label>
-              <Textarea
-                id="prompt"
-                placeholder="A beautiful sunset over a mountain lake, 4k, detailed"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="min-h-24 resize-none focus-visible:ring-purple-500"
-              />
+              <div className="flex items-center justify-between">
+                <Label htmlFor="prompt">Prompt</Label>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                    onClick={() => setShowSamplePrompts(!showSamplePrompts)}
+                  >
+                    Sample Prompts
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                    onClick={getRandomPrompt}
+                    title="Random Prompt"
+                  >
+                    <Wand2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="relative">
+                <Textarea
+                  id="prompt"
+                  placeholder="A beautiful sunset over a mountain lake, 4k, detailed"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  className="min-h-24 resize-none focus-visible:ring-purple-500"
+                />
+                <AnimatePresence>
+                  {showSamplePrompts && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute z-10 mt-1 w-full bg-card border border-purple-500/20 rounded-md shadow-lg overflow-hidden"
+                    >
+                      <div className="p-1">
+                        {SAMPLE_PROMPTS.map((samplePrompt, index) => (
+                          <button
+                            key={index}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-purple-500/10 rounded transition-colors"
+                            onClick={() => useSamplePrompt(samplePrompt)}
+                          >
+                            {samplePrompt}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
             
             <Tabs defaultValue="basic">
@@ -302,7 +380,7 @@ export function ImageGenerator() {
             <Button 
               onClick={handleGenerate} 
               disabled={loading || !prompt}
-              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 transition-all duration-300"
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 transition-all duration-300 shadow-md hover:shadow-lg"
             >
               {loading ? (
                 <>
@@ -322,21 +400,32 @@ export function ImageGenerator() {
         <div className="space-y-8">
           <Card className="overflow-hidden border border-purple-500/20">
             <CardHeader className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-t-lg">
-              <CardTitle>Generated Image</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5 text-purple-400" />
+                Generated Image
+              </CardTitle>
               <CardDescription>
                 Your AI-generated masterpiece
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className={cn(
-                "aspect-square rounded-md flex items-center justify-center overflow-hidden bg-secondary/30 border border-purple-500/20",
-                loading && "animate-pulse"
-              )}>
+              <motion.div 
+                className={cn(
+                  "aspect-square rounded-md flex items-center justify-center overflow-hidden bg-secondary/30 border border-purple-500/20",
+                  loading && "animate-pulse"
+                )}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              >
                 {generatedImage ? (
-                  <img 
+                  <motion.img 
                     src={generatedImage} 
                     alt="Generated" 
                     className="w-full h-full object-cover"
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.5 }}
                   />
                 ) : (
                   <div className="text-muted-foreground flex flex-col items-center">
@@ -344,7 +433,7 @@ export function ImageGenerator() {
                     <span>{loading ? "Generating..." : "No image generated yet"}</span>
                   </div>
                 )}
-              </div>
+              </motion.div>
             </CardContent>
             {generatedImage && (
               <CardFooter>
@@ -365,7 +454,10 @@ export function ImageGenerator() {
               <CardHeader className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-t-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Recent Images</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-purple-400" />
+                      Recent Images
+                    </CardTitle>
                     <CardDescription>
                       Your generation history
                     </CardDescription>
@@ -400,9 +492,12 @@ export function ImageGenerator() {
               <CardContent className="pt-6">
                 <div className="grid grid-cols-2 gap-3">
                   {generatedImages.slice(0, 6).map((img, i) => (
-                    <div 
+                    <motion.div 
                       key={i} 
                       className="aspect-square rounded-md overflow-hidden relative group border border-purple-500/20"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: i * 0.1 }}
                     >
                       <img 
                         src={img.url} 
@@ -413,7 +508,7 @@ export function ImageGenerator() {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                         <p className="text-white text-xs line-clamp-2">{img.prompt}</p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </CardContent>

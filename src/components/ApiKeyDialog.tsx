@@ -4,7 +4,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
-import { KeyIcon, EyeIcon, EyeOffIcon } from "lucide-react"
+import { KeyIcon, EyeIcon, EyeOffIcon, ExternalLinkIcon } from "lucide-react"
+import { motion } from "framer-motion"
 
 interface ApiKeyDialogProps {
   open: boolean
@@ -36,18 +37,22 @@ export function ApiKeyDialog({ open, onOpenChange, onSubmit }: ApiKeyDialogProps
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md border border-purple-500/20">
         <DialogHeader>
-          <DialogTitle>Replicate API Key</DialogTitle>
+          <DialogTitle className="text-xl flex items-center gap-2">
+            <KeyIcon className="h-5 w-5 text-purple-400" />
+            Replicate API Key
+          </DialogTitle>
           <DialogDescription>
             You need a Replicate API key to generate images. Get one at{" "}
             <a 
               href="https://replicate.com/account/api-tokens" 
               target="_blank" 
               rel="noreferrer"
-              className="underline underline-offset-4 hover:text-primary"
+              className="text-purple-400 hover:text-purple-300 underline underline-offset-4 inline-flex items-center gap-1"
             >
               replicate.com
+              <ExternalLinkIcon className="h-3 w-3" />
             </a>
           </DialogDescription>
         </DialogHeader>
@@ -64,14 +69,14 @@ export function ApiKeyDialog({ open, onOpenChange, onSubmit }: ApiKeyDialogProps
                     placeholder="r8_..."
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    className="pr-10"
+                    className="pr-10 focus-visible:ring-purple-500"
                     autoComplete="off"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute right-0 top-0 h-full px-3"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                     onClick={() => setShowApiKey(!showApiKey)}
                   >
                     {showApiKey ? (
@@ -85,13 +90,22 @@ export function ApiKeyDialog({ open, onOpenChange, onSubmit }: ApiKeyDialogProps
                   </Button>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <motion.p 
+                className="text-xs text-muted-foreground"
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
                 Your API key is stored locally in your browser and never sent to our servers.
-              </p>
+              </motion.p>
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={!apiKey.trim()}>
+            <Button 
+              type="submit" 
+              disabled={!apiKey.trim()}
+              className="bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 transition-all duration-300"
+            >
               Save API Key
             </Button>
           </DialogFooter>
