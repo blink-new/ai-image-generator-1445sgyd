@@ -37,13 +37,6 @@ export function ApiKeyDialog({ open, onOpenChange, onSubmit }: ApiKeyDialogProps
       onOpenChange(false)
     }
   }
-
-  const useDemoKey = () => {
-    // This is just a placeholder - in a real app, you might have a demo key
-    setApiKey("r8_demo_key")
-    onSubmit("r8_demo_key")
-    onOpenChange(false)
-  }
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,7 +77,7 @@ export function ApiKeyDialog({ open, onOpenChange, onSubmit }: ApiKeyDialogProps
                       <Button
                         type="button"
                         variant="ghost"
-                size="icon"
+                        size="icon"
                         className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                         onClick={() => setShowApiKey(!showApiKey)}
                       >
@@ -110,33 +103,13 @@ export function ApiKeyDialog({ open, onOpenChange, onSubmit }: ApiKeyDialogProps
                 </div>
               </div>
               
-              <div className="mt-6 flex flex-col gap-3">
+              <div className="mt-6">
                 <Button 
                   type="submit" 
                   disabled={!apiKey.trim()}
                   className="w-full bg-gradient-to-r from-purple-600 to-blue-500 hover:from-purple-700 hover:to-blue-600 transition-all duration-300"
                 >
                   Save API Key
-                </Button>
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-muted-foreground/20" />
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or try the app
-                    </span>
-                  </div>
-                </div>
-                
-                <Button 
-                  type="button"
-                  variant="outline"
-                  className="w-full border-purple-500/30 hover:bg-purple-500/10"
-                  onClick={useDemoKey}
-                >
-                  Use Demo Mode
                 </Button>
               </div>
             </form>
@@ -146,7 +119,7 @@ export function ApiKeyDialog({ open, onOpenChange, onSubmit }: ApiKeyDialogProps
             <Alert className="bg-purple-500/5 border-purple-500/20">
               <InfoIcon className="h-4 w-4 text-purple-500" />
               <AlertDescription className="text-sm">
-                In demo mode, you'll see placeholder images instead of real AI-generated images.
+                You need a valid Replicate API key to use this application.
               </AlertDescription>
             </Alert>
             

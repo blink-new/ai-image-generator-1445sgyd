@@ -32,7 +32,7 @@ serve(async (req) => {
   try {
     // Parse the request body
     const body = await req.json();
-    console.log("Request body:", JSON.stringify(body));
+    console.log("Request received by Edge Function");
     
     const { apiKey, model, input } = body as ReplicateRequest;
 
@@ -51,7 +51,7 @@ serve(async (req) => {
       throw new Error("Invalid model format. Expected 'model:version'")
     }
 
-    console.log(`Processing request for model: ${modelName}, version: ${modelVersion}`);
+    console.log(`Processing request for model: ${modelName}`);
 
     // Make the request to Replicate API
     const response = await fetch("https://api.replicate.com/v1/predictions", {
@@ -80,7 +80,7 @@ serve(async (req) => {
     // Poll for the prediction result
     let result = prediction
     let attempts = 0;
-    const maxAttempts = 30; // Limit polling to prevent infinite loops
+    const maxAttempts = 60; // Increase max attempts for longer generations
     
     while (result.status !== "succeeded" && result.status !== "failed" && attempts < maxAttempts) {
       attempts++;
